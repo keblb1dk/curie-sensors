@@ -118,59 +118,6 @@
             border-radius: 5px;
             display: none;
         }
-        /* Custom toggle switch for the dashboard view */
-        .toggle-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        .toggle-label {
-            margin: 0 10px;
-            color: #2c3e50;
-        }
-        .switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 34px;
-        }
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 34px;
-        }
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 26px;
-            width: 26px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .slider {
-            background-color: #2196F3;
-        }
-        input:checked + .slider:before {
-            transform: translateX(26px);
-        }
-        #chart-view {
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -180,54 +127,49 @@
             <div class="subtitle">Real-time sensor monitoring from anywhere</div>
         </div>
         
-
-        
-        <!-- Chart View -->
-        <div id="chart-view">
-            <div class="cards">
-                <div class="card">
-                    <div class="card-title">Temperature</div>
-                    <div id="temp-c" class="card-value">--</div>
-                    <div class="card-unit">°C</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Temperature</div>
-                    <div id="temp-f" class="card-value">--</div>
-                    <div class="card-unit">°F</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">X-Acceleration</div>
-                    <div id="accel-x" class="card-value">--</div>
-                    <div class="card-unit">m/s²</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Y-Acceleration</div>
-                    <div id="accel-y" class="card-value">--</div>
-                    <div class="card-unit">m/s²</div>
-                </div>
-                <div class="card">
-                    <div class="card-title">Z-Acceleration</div>
-                    <div id="accel-z" class="card-value">--</div>
-                    <div class="card-unit">m/s²</div>
-                </div>
+        <div class="cards">
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div id="temp-c" class="card-value">--</div>
+                <div class="card-unit">°C</div>
             </div>
-            
-            <div class="chart-container">
-                <div class="chart-title">Temperature History</div>
-                <canvas id="temperatureChart"></canvas>
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div id="temp-f" class="card-value">--</div>
+                <div class="card-unit">°F</div>
             </div>
-            
-            <div class="chart-container">
-                <div class="chart-title">Acceleration History</div>
-                <canvas id="accelerationChart"></canvas>
+            <div class="card">
+                <div class="card-title">X-Acceleration</div>
+                <div id="accel-x" class="card-value">--</div>
+                <div class="card-unit">m/s²</div>
             </div>
-            
-            <div id="status" class="status loading">
-                Loading data...
+            <div class="card">
+                <div class="card-title">Y-Acceleration</div>
+                <div id="accel-y" class="card-value">--</div>
+                <div class="card-unit">m/s²</div>
             </div>
-            
-            <div id="error-log"></div>
+            <div class="card">
+                <div class="card-title">Z-Acceleration</div>
+                <div id="accel-z" class="card-value">--</div>
+                <div class="card-unit">m/s²</div>
+            </div>
         </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Temperature History</div>
+            <canvas id="temperatureChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Acceleration History</div>
+            <canvas id="accelerationChart"></canvas>
+        </div>
+        
+        <div id="status" class="status loading">
+            Loading data...
+        </div>
+        
+        <div id="error-log"></div>
         
         <div class="footer">
             <p>Data refreshes automatically. Last updated: <span id="last-update">never</span></p>
@@ -265,11 +207,40 @@
                 options: {
                     responsive: true,
                     scales: {
-                        x: { display: true },
-                        y: { display: true, title: { display: true, text: 'Temperature (°F)' } }
+                        x: { 
+                            display: true,
+                            ticks: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        y: { 
+                            display: true, 
+                            title: { 
+                                display: true, 
+                                text: 'Temperature (°F)',
+                                font: {
+                                    size: 18,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                font: {
+                                    size: 16
+                                }
+                            }
+                        }
                     },
                     plugins: {
-                        legend: { position: 'top' }
+                        legend: { 
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 16
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -306,11 +277,40 @@
                 options: {
                     responsive: true,
                     scales: {
-                        x: { display: true },
-                        y: { display: true, title: { display: true, text: 'Acceleration (m/s²)' } }
+                        x: { 
+                            display: true,
+                            ticks: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        y: { 
+                            display: true, 
+                            title: { 
+                                display: true, 
+                                text: 'Acceleration (m/s²)',
+                                font: {
+                                    size: 18,
+                                    weight: 'bold'
+                                }
+                            },
+                            ticks: {
+                                font: {
+                                    size: 16
+                                }
+                            }
+                        }
                     },
                     plugins: {
-                        legend: { position: 'top' }
+                        legend: { 
+                            position: 'top',
+                            labels: {
+                                font: {
+                                    size: 16
+                                }
+                            }
+                        }
                     }
                 }
             });
@@ -468,24 +468,10 @@
             errorLog.innerHTML += `<p>${message}</p>`;
         }
         
-        // Toggle between views
-        function toggleView() {
-            const isChartView = document.getElementById('view-toggle').checked;
-            document.getElementById('chart-view').style.display = isChartView ? 'block' : 'none';
-            document.getElementById('embedded-view').style.display = isChartView ? 'none' : 'block';
-        }
-        
         // Initialize the page
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize charts
             initCharts();
-            
-            // Set up view toggle
-            document.getElementById('view-toggle').addEventListener('change', toggleView);
-            
-            // Show embedded view by default
-            document.getElementById('view-toggle').checked = false;
-            toggleView();
             
             // Initial data fetch for chart view
             fetchAllData();
