@@ -245,7 +245,7 @@
                 responsive: true,
                 scales: {
                     x: { display: true },
-                    y: { display: true, title: { display: true, text: 'Acceleration (g)' } }
+                    y: { display: true, title: { display: true, text: 'Acceleration (m/s^2)' } }
                 },
                 plugins: {
                     legend: { position: 'top' }
@@ -298,9 +298,9 @@
                     
                     timestamps.push(timeLabel);
                     tempData.push(entry.temperature_f);
-                    accelXData.push(entry.accel_x);
-                    accelYData.push(entry.accel_y);
-                    accelZData.push(entry.accel_z);
+                    accelXData.push(entry.accel_x*9.80665);
+                    accelYData.push(entry.accel_y*9.80665);
+                    accelZData.push(entry.accel_z*9.80665);
                 });
                 
                 // Update temperature chart
