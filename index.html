@@ -100,9 +100,6 @@
             color: #95a5a6;
             font-size: 0.9rem;
         }
-        .embed-container {
-            margin-bottom: 20px;
-        }
         @media (max-width: 768px) {
             .cards {
                 flex-direction: column;
@@ -113,6 +110,14 @@
                 max-width: 100%;
             }
         }
+        #error-log {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border-radius: 5px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -122,40 +127,351 @@
             <div class="subtitle">Real-time sensor monitoring from anywhere</div>
         </div>
         
-        <!-- Public Adafruit IO Embeds -->
-        <div class="embed-container">
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.temperature-f/embed"></iframe>
+        <div class="cards">
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div id="temp-c" class="card-value">--</div>
+                <div class="card-unit">°C</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div id="temp-f" class="card-value">--</div>
+                <div class="card-unit">°F</div>
+            </div>
+            <div class="card">
+                <div class="card-title">X-Acceleration</div>
+                <div id="accel-x" class="card-value">--</div>
+                <div class="card-unit">m/s²</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Y-Acceleration</div>
+                <div id="accel-y" class="card-value">--</div>
+                <div class="card-unit">m/s²</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Z-Acceleration</div>
+                <div id="accel-z" class="card-value">--</div>
+                <div class="card-unit">m/s²</div>
+            </div>
         </div>
         
-        <div class="embed-container">
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-x/embed"></iframe>
+        <div class="chart-container">
+            <div class="chart-title">Temperature History</div>
+            <canvas id="temperatureChart"></canvas>
         </div>
         
-        <div class="embed-container">
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-y/embed"></iframe>
+        <div class="chart-container">
+            <div class="chart-title">Acceleration History</div>
+            <canvas id="accelerationChart"></canvas>
         </div>
         
-        <div class="embed-container">
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-z/embed"></iframe>
+        <div id="status" class="status loading">
+            Connecting to Adafruit IO...
         </div>
+        
+        <div id="error-log"></div>
         
         <div class="footer">
-            <p>Data powered by Adafruit IO | Last updated: <span id="last-update"></span></p>
+            <p>Data refreshes automatically. Last updated: <span id="last-update">never</span></p>
         </div>
     </div>
     
     <script>
-        // Set current time
-        function updateTime() {
-            const now = new Date();
-            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+        // Constants
+        const USERNAME = 'keblb1dk';
+        const GROUP_NAME = 'curie-sensors';
+        const UPDATE_INTERVAL = 3000; // 3 seconds
+        
+        // Global variables
+        let tempChart, accelChart;
+        let lastUpdateTime = 0;
+        let updateIntervalId;
+        
+        // Initialize charts
+        function initCharts() {
+            const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+            tempChart = new Chart(tempCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Temperature (°F)',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { display: true },
+                        y: { display: true, title: { display: true, text: 'Temperature (°F)' } }
+                    },
+                    plugins: {
+                        legend: { position: 'top' }
+                    }
+                }
+            });
+            
+            const accelCtx = document.getElementById('accelerationChart').getContext('2d');
+            accelChart = new Chart(accelCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'X-Axis',
+                            data: [],
+                            borderColor: 'rgb(54, 162, 235)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Y-Axis',
+                            data: [],
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Z-Axis',
+                            data: [],
+                            borderColor: 'rgb(255, 159, 64)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { display: true },
+                        y: { display: true, title: { display: true, text: 'Acceleration (m/s²)' } }
+                    },
+                    plugins: {
+                        legend: { position: 'top' }
+                    }
+                }
+            });
         }
         
-        // Update time immediately
-        updateTime();
+        // Fetch data from Adafruit IO using JSONP
+        function fetchFeedData(feedKey, callback) {
+            const script = document.createElement('script');
+            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            
+            // Create global callback function
+            window[callbackName] = function(data) {
+                callback(data);
+                delete window[callbackName];
+                document.body.removeChild(script);
+            };
+            
+            // Build URL with callback parameter
+            const url = `https://io.adafruit.com/api/v2/${USERNAME}/feeds/${GROUP_NAME}.${feedKey}/data?limit=20&callback=${callbackName}`;
+            
+            // Create script tag with jsonp URL
+            script.src = url;
+            document.body.appendChild(script);
+            
+            // Set timeout to remove script if no response
+            setTimeout(function() {
+                if (window[callbackName]) {
+                    delete window[callbackName];
+                    document.body.removeChild(script);
+                    logError(`Timeout fetching data for ${feedKey}`);
+                }
+            }, 5000);
+        }
         
-        // Set up interval to update time
-        setInterval(updateTime, 10000);
+        // Fetch all feeds
+        function fetchAllData() {
+            try {
+                // Temperature C
+                fetchFeedData('temperature-c', function(data) {
+                    if (data && data.length > 0) {
+                        document.getElementById('temp-c').textContent = parseFloat(data[0].value).toFixed(2);
+                    }
+                });
+                
+                // Temperature F
+                fetchFeedData('temperature-f', function(data) {
+                    if (data && data.length > 0) {
+                        document.getElementById('temp-f').textContent = parseFloat(data[0].value).toFixed(2);
+                        updateTemperatureChart(data);
+                    }
+                });
+                
+                // Acceleration X
+                fetchFeedData('acceleration-x', function(data) {
+                    if (data && data.length > 0) {
+                        document.getElementById('accel-x').textContent = (parseFloat(data[0].value) * 9.80665).toFixed(4);
+                        updateAccelXChart(data);
+                    }
+                });
+                
+                // Acceleration Y
+                fetchFeedData('acceleration-y', function(data) {
+                    if (data && data.length > 0) {
+                        document.getElementById('accel-y').textContent = (parseFloat(data[0].value) * 9.80665).toFixed(4);
+                        updateAccelYChart(data);
+                    }
+                });
+                
+                // Acceleration Z
+                fetchFeedData('acceleration-z', function(data) {
+                    if (data && data.length > 0) {
+                        document.getElementById('accel-z').textContent = (parseFloat(data[0].value) * 9.80665).toFixed(4);
+                        updateAccelZChart(data);
+                    }
+                });
+                
+                // Update status and timestamp
+                const now = new Date();
+                document.getElementById('last-update').textContent = now.toLocaleTimeString();
+                lastUpdateTime = now;
+                updateStatus('Connected to Adafruit IO', 'connected');
+            } catch (error) {
+                logError(`Error fetching data: ${error.message}`);
+            }
+        }
+        
+        // Update temperature chart
+        function updateTemperatureChart(data) {
+            if (!data || data.length === 0) return;
+            
+            try {
+                // Extract timestamps and values (reverse to get chronological order)
+                const timestamps = data.map(item => new Date(item.created_at)).reverse();
+                const values = data.map(item => parseFloat(item.value)).reverse();
+                
+                // Format times for display
+                const timeLabels = timestamps.map(time => time.toLocaleTimeString());
+                
+                // Update the chart
+                tempChart.data.labels = timeLabels;
+                tempChart.data.datasets[0].data = values;
+                tempChart.update();
+            } catch (error) {
+                logError(`Error updating temperature chart: ${error.message}`);
+            }
+        }
+        
+        // Store collected acceleration data
+        let accelXData = [];
+        let accelYData = [];
+        let accelZData = [];
+        let accelTimestamps = [];
+        
+        // Update X acceleration values
+        function updateAccelXChart(data) {
+            if (!data || data.length === 0) return;
+            
+            try {
+                // Extract timestamps and values (reverse to get chronological order)
+                const timestamps = data.map(item => new Date(item.created_at)).reverse();
+                const values = data.map(item => parseFloat(item.value) * 9.80665).reverse(); // Convert to m/s²
+                
+                // Store data for complete chart update
+                accelXData = values;
+                accelTimestamps = timestamps;
+                
+                // Try to update the complete acceleration chart
+                updateAccelerationChart();
+            } catch (error) {
+                logError(`Error updating accel X chart: ${error.message}`);
+            }
+        }
+        
+        // Update Y acceleration values
+        function updateAccelYChart(data) {
+            if (!data || data.length === 0) return;
+            
+            try {
+                // Extract values (reverse to get chronological order)
+                const values = data.map(item => parseFloat(item.value) * 9.80665).reverse(); // Convert to m/s²
+                
+                // Store data for complete chart update
+                accelYData = values;
+                
+                // Try to update the complete acceleration chart
+                updateAccelerationChart();
+            } catch (error) {
+                logError(`Error updating accel Y chart: ${error.message}`);
+            }
+        }
+        
+        // Update Z acceleration values
+        function updateAccelZChart(data) {
+            if (!data || data.length === 0) return;
+            
+            try {
+                // Extract values (reverse to get chronological order)
+                const values = data.map(item => parseFloat(item.value) * 9.80665).reverse(); // Convert to m/s²
+                
+                // Store data for complete chart update
+                accelZData = values;
+                
+                // Try to update the complete acceleration chart
+                updateAccelerationChart();
+            } catch (error) {
+                logError(`Error updating accel Z chart: ${error.message}`);
+            }
+        }
+        
+        // Update the complete acceleration chart
+        function updateAccelerationChart() {
+            // Only update if we have data for all axes and timestamps
+            if (accelXData.length === 0 || accelYData.length === 0 || accelZData.length === 0 || accelTimestamps.length === 0) {
+                return;
+            }
+            
+            try {
+                // Format times for display
+                const timeLabels = accelTimestamps.map(time => time.toLocaleTimeString());
+                
+                // Make sure all arrays have the same length
+                const minLength = Math.min(accelXData.length, accelYData.length, accelZData.length, timeLabels.length);
+                
+                // Update the chart
+                accelChart.data.labels = timeLabels.slice(0, minLength);
+                accelChart.data.datasets[0].data = accelXData.slice(0, minLength);
+                accelChart.data.datasets[1].data = accelYData.slice(0, minLength);
+                accelChart.data.datasets[2].data = accelZData.slice(0, minLength);
+                accelChart.update();
+            } catch (error) {
+                logError(`Error updating acceleration chart: ${error.message}`);
+            }
+        }
+        
+        // Update status display
+        function updateStatus(message, statusClass) {
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = message;
+            statusElement.className = 'status ' + statusClass;
+        }
+        
+        // Log errors
+        function logError(message) {
+            console.error(message);
+            const errorLog = document.getElementById('error-log');
+            errorLog.style.display = 'block';
+            errorLog.innerHTML += `<p>${message}</p>`;
+        }
+        
+        // Initialize the page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize charts
+            initCharts();
+            
+            // Initial data fetch
+            fetchAllData();
+            
+            // Set up interval for regular updates
+            updateIntervalId = setInterval(fetchAllData, UPDATE_INTERVAL);
+        });
     </script>
 </body>
 </html>
