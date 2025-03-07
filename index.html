@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arduino Sensor Dashboard</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f7fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+        .cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 30px;
+            justify-content: center;
+        }
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            flex: 1;
+            min-width: 180px;
+            max-width: 250px;
+            text-align: center;
+        }
+        .card-title {
+            color: #7f8c8d;
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+        .card-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .card-unit {
+            font-size: 0.9rem;
+            color: #95a5a6;
+            margin-top: 5px;
+        }
+        .chart-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .chart-title {
+            color: #2c3e50;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+        }
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 30px;
+            font-weight: 500;
+        }
+        .connected {
+            background-color: #d5f5e3;
+            color: #27ae60;
+        }
+        .disconnected {
+            background-color: #fadbd8;
+            color: #c0392b;
+        }
+        .loading {
+            background-color: #ebf5fb;
+            color: #3498db;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #95a5a6;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            .cards {
+                flex-direction: column;
+                align-items: center;
+            }
+            .card {
+                width: 100%;
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Curie Sensors Dashboard</h1>
+            <div class="subtitle">Real-time sensor monitoring from anywhere</div>
+        </div>
+        
+        <div class="cards">
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div id="temp-c" class="card-value">--</div>
+                <div class="card-unit">°C</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div id="temp-f" class="card-value">--</div>
+                <div class="card-unit">°F</div>
+            </div>
+            <div class="card">
+                <div class="card-title">X-Acceleration</div>
+                <div id="accel-x" class="card-value">--</div>
+                <div class="card-unit">g</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Y-Acceleration</div>
+                <div id="accel-y" class="card-value">--</div>
+                <div class="card-unit">g</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Z-Acceleration</div>
+                <div id="accel-z" class="card-value">--</div>
+                <div class="card-unit">g</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Temperature History</div>
+            <canvas id="temperatureChart"></canvas>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Acceleration History</div>
+            <canvas id="accelerationChart"></canvas>
+        </div>
+        
+        <div id="status" class="status loading">
+            Connecting to sensor data...
+        </div>
+        
+        <div class="footer">
+            <p>Data refreshes automatically. Last updated: <span id="last-update">never</span></p>
+        </div>
+    </div>
+    
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyDgdfnHu0-Z9FAw20sJkxrj_Uai0SFv2Mo",
+            authDomain: "curie-sensors-6ae22.firebaseapp.com",
+            databaseURL: "https://curie-sensors-6ae22-default-rtdb.firebaseio.com",
+            projectId: "curie-sensors-6ae22",
+            storageBucket: "curie-sensors-6ae22.appspot.com",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // You can leave this as is
+            appId: "YOUR_APP_ID" // You can leave this as is
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // Chart configuration
+        const tempCtx = document.getElementById('temperatureChart').getContext('2d');
+        const tempChart = new Chart(tempCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Temperature (°F)',
+                    data: [],
+                    borderColor: 'rgb(255, 99, 132)',
+                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                    tension: 0.3,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { display: true },
+                    y: { display: true, title: { display: true, text: 'Temperature (°F)' } }
+                },
+                plugins: {
+                    legend: { position: 'top' }
+                }
+            }
+        });
+        
+        const accelCtx = document.getElementById('accelerationChart').getContext('2d');
+        const accelChart = new Chart(accelCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'X-Axis',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Y-Axis',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Z-Axis',
+                        data: [],
+                        borderColor: 'rgb(255, 159, 64)',
+                        backgroundColor: 'rgba(255, 159, 64, 0.1)',
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: { display: true },
+                    y: { display: true, title: { display: true, text: 'Acceleration (g)' } }
+                },
+                plugins: {
+                    legend: { position: 'top' }
+                }
+            }
+        });
+        
+        // Track the latest data timestamp for comparing when new data arrives
+        let latestTimestamp = 0;
+        
+        // Get a reference to latest sensor data
+        const latestRef = database.ref('sensor_data/latest');
+        latestRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                // Update status
+                document.getElementById('status').textContent = 'Connected - Live Data';
+                document.getElementById('status').className = 'status connected';
+                
+                // Update current values
+                document.getElementById('temp-c').textContent = data.temperature_c.toFixed(2);
+                document.getElementById('temp-f').textContent = data.temperature_f.toFixed(2);
+                document.getElementById('accel-x').textContent = data.accel_x.toFixed(4);
+                document.getElementById('accel-y').textContent = data.accel_y.toFixed(4);
+                document.getElementById('accel-z').textContent = data.accel_z.toFixed(4);
+                
+                // Update last update time
+                const now = new Date();
+                document.getElementById('last-update').textContent = now.toLocaleTimeString();
+            }
+        });
+        
+        // Get historical data for charts
+        const historyRef = database.ref('sensor_data/history').orderByKey().limitToLast(50);
+        historyRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const timestamps = [];
+                const tempData = [];
+                const accelXData = [];
+                const accelYData = [];
+                const accelZData = [];
+                
+                // Process the data
+                Object.keys(data).forEach((key) => {
+                    const entry = data[key];
+                    // Convert timestamp to readable time
+                    const time = new Date(parseInt(key));
+                    const timeLabel = time.getHours() + ':' + time.getMinutes() + ':' + time.getSeconds();
+                    
+                    timestamps.push(timeLabel);
+                    tempData.push(entry.temperature_f);
+                    accelXData.push(entry.accel_x);
+                    accelYData.push(entry.accel_y);
+                    accelZData.push(entry.accel_z);
+                });
+                
+                // Update temperature chart
+                tempChart.data.labels = timestamps;
+                tempChart.data.datasets[0].data = tempData;
+                tempChart.update();
+                
+                // Update acceleration chart
+                accelChart.data.labels = timestamps;
+                accelChart.data.datasets[0].data = accelXData;
+                accelChart.data.datasets[1].data = accelYData;
+                accelChart.data.datasets[2].data = accelZData;
+                accelChart.update();
+            }
+        });
+        
+        // Handle connection errors
+        latestRef.on('child_removed', () => {
+            document.getElementById('status').textContent = 'Disconnected - No Data';
+            document.getElementById('status').className = 'status disconnected';
+        });
+    </script>
+</body>
+</html>
