@@ -135,6 +135,30 @@
         button:hover {
             background-color: #2980b9;
         }
+        .error-details {
+            margin-top: 10px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border-left: 4px solid #dc3545;
+            display: none;
+        }
+        .error-text {
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 14px;
+            color: #721c24;
+        }
+        .show-details-btn {
+            background: none;
+            border: none;
+            color: #3498db;
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 0;
+            font-size: 14px;
+            margin-top: 10px;
+        }
         @media (max-width: 768px) {
             .cards {
                 flex-direction: column;
@@ -169,6 +193,10 @@
                 <input type="text" id="aio-group" value="curie-sensors" placeholder="Enter the group name">
             </div>
             <button id="connect-button">Connect</button>
+            
+            <div id="error-details" class="error-details">
+                <div class="error-text" id="error-text"></div>
+            </div>
         </div>
         
         <div class="cards">
@@ -226,6 +254,7 @@
         let tempChart, accelChart;
         let lastUpdateTime = 0;
         let updateInterval;
+        let lastErrorMessage = '';
         
         // Initialize charts
         function initCharts() {
@@ -309,31 +338,63 @@
             }
             
             updateStatus('Connecting to Adafruit IO...', 'loading');
+            hideErrorDetails();
             
             // Store credentials in localStorage (for convenience)
             localStorage.setItem('aio-username', username);
             localStorage.setItem('aio-key', apiKey);
             localStorage.setItem('aio-group', groupName);
             
-            // Fetch initial data to verify connection
-            fetchGroupData()
+            // Test connection by fetching the public group info first
+            fetchPublicGroup()
                 .then(data => {
                     if (data) {
+                        updateStatus('Connected to Adafruit IO - Testing feeds...', 'loading');
+                        return tryFetchSingleFeed();
+                    } else {
+                        throw new Error('Group not found or not accessible');
+                    }
+                })
+                .then(feedData => {
+                    if (feedData && feedData.length > 0) {
                         updateStatus('Connected to Adafruit IO', 'connected');
                         startDataUpdates();
                     } else {
-                        updateStatus('No data available on Adafruit IO', 'disconnected');
+                        updateStatus('Group found but no data in feeds', 'connected');
+                        startDataUpdates(); // Start anyway to fetch new data as it comes in
                     }
                 })
                 .catch(error => {
                     console.error('Connection error:', error);
-                    updateStatus('Failed to connect to Adafruit IO: ' + error.message, 'disconnected');
+                    lastErrorMessage = error.toString();
+                    updateStatus('Connection error - Show details', 'disconnected');
+                    document.getElementById('error-text').textContent = 'Error: ' + error.toString() + 
+                        '\n\nDouble-check your API key and make sure your feeds are accessible.';
+                    document.getElementById('error-details').style.display = 'block';
                 });
         }
         
-        // Fetch group data to verify connection
-        function fetchGroupData() {
+        // Fetch public group info
+        function fetchPublicGroup() {
+            // Try public endpoint first to check if group exists
             const url = `https://io.adafruit.com/api/v2/${username}/groups/${groupName}`;
+            
+            return fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new Error(`Group "${groupName}" not found for user "${username}"`);
+                        }
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                });
+        }
+        
+        // Try to fetch a single feed to verify API key
+        function tryFetchSingleFeed() {
+            const feedKey = `${groupName}.temperature-f`;
+            const url = `https://io.adafruit.com/api/v2/${username}/feeds/${feedKey}/data/last`;
             
             return fetch(url, {
                 method: 'GET',
@@ -343,9 +404,18 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    if (response.status === 401) {
+                        throw new Error('Invalid API Key');
+                    } else if (response.status === 404) {
+                        throw new Error(`Feed "${feedKey}" not found`);
+                    }
+                    throw new Error(`API error (${response.status}): ${response.statusText}`);
                 }
-                return response.json();
+                return [response.json()]; // Wrap in array to match expected format
+            })
+            .catch(error => {
+                console.error('Feed fetch error:', error);
+                throw error;
             });
         }
         
@@ -359,8 +429,13 @@
             // Initial data fetch
             fetchAllData();
             
-            // Set up interval for regular updates (every 2 seconds)
-            updateInterval = setInterval(fetchAllData, 2000);
+            // Set up interval for regular updates (every 3 seconds)
+            updateInterval = setInterval(fetchAllData, 3000);
+        }
+        
+        // Hide error details
+        function hideErrorDetails() {
+            document.getElementById('error-details').style.display = 'none';
         }
         
         // Fetch data for all feeds
@@ -373,21 +448,31 @@
                 fetchFeedData('acceleration-z')
             ])
             .then(([tempCData, tempFData, accelXData, accelYData, accelZData]) => {
+                // Check if we have any data
+                const hasData = tempCData.length > 0 || tempFData.length > 0 || 
+                                accelXData.length > 0 || accelYData.length > 0 || 
+                                accelZData.length > 0;
+                
+                if (!hasData) {
+                    console.log("No data received from any feeds");
+                    return;
+                }
+                
                 // Update current values with the latest data
                 if (tempCData.length > 0) {
-                    document.getElementById('temp-c').textContent = tempCData[0].value.toFixed(2);
+                    document.getElementById('temp-c').textContent = parseFloat(tempCData[0].value).toFixed(2);
                 }
                 if (tempFData.length > 0) {
-                    document.getElementById('temp-f').textContent = tempFData[0].value.toFixed(2);
+                    document.getElementById('temp-f').textContent = parseFloat(tempFData[0].value).toFixed(2);
                 }
                 if (accelXData.length > 0) {
-                    document.getElementById('accel-x').textContent = (accelXData[0].value * 9.80665).toFixed(4);
+                    document.getElementById('accel-x').textContent = (parseFloat(accelXData[0].value) * 9.80665).toFixed(4);
                 }
                 if (accelYData.length > 0) {
-                    document.getElementById('accel-y').textContent = (accelYData[0].value * 9.80665).toFixed(4);
+                    document.getElementById('accel-y').textContent = (parseFloat(accelYData[0].value) * 9.80665).toFixed(4);
                 }
                 if (accelZData.length > 0) {
-                    document.getElementById('accel-z').textContent = (accelZData[0].value * 9.80665).toFixed(4);
+                    document.getElementById('accel-z').textContent = (parseFloat(accelZData[0].value) * 9.80665).toFixed(4);
                 }
                 
                 // Update charts
@@ -398,13 +483,22 @@
                 const now = new Date();
                 document.getElementById('last-update').textContent = now.toLocaleTimeString();
                 lastUpdateTime = now.getTime();
+                
+                // Make sure status shows connected
+                if (document.getElementById('status').className !== 'status connected') {
+                    updateStatus('Connected to Adafruit IO', 'connected');
+                }
             })
             .catch(error => {
                 console.error('Error fetching data:', error);
+                lastErrorMessage = error.toString();
+                
                 // If we haven't had an update in more than 30 seconds, show disconnected
                 const now = new Date().getTime();
                 if (now - lastUpdateTime > 30000) {
-                    updateStatus('Connection lost', 'disconnected');
+                    updateStatus('Connection lost - Check console for error details', 'disconnected');
+                    document.getElementById('error-text').textContent = 'Error: ' + error.toString();
+                    document.getElementById('error-details').style.display = 'block';
                     clearInterval(updateInterval);
                 }
             });
@@ -423,50 +517,66 @@
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    if (response.status === 404) {
+                        console.warn(`Feed not found: ${feedKey}`);
+                        return []; // Return empty array for non-existent feeds
+                    }
+                    throw new Error(`HTTP error fetching ${feedKey}! status: ${response.status}`);
                 }
                 return response.json();
+            })
+            .catch(error => {
+                console.error(`Error fetching ${feedName}:`, error);
+                return []; // Return empty array on error
             });
         }
         
         // Update temperature chart
         function updateTemperatureChart(data) {
-            if (data.length === 0) return;
+            if (!data || data.length === 0) return;
             
-            // Extract timestamps and values (reverse to get chronological order)
-            const timestamps = data.map(item => new Date(item.created_at)).reverse();
-            const values = data.map(item => parseFloat(item.value)).reverse();
-            
-            // Format times for display
-            const timeLabels = timestamps.map(time => time.toLocaleTimeString());
-            
-            // Update the chart
-            tempChart.data.labels = timeLabels;
-            tempChart.data.datasets[0].data = values;
-            tempChart.update();
+            try {
+                // Extract timestamps and values (reverse to get chronological order)
+                const timestamps = data.map(item => new Date(item.created_at)).reverse();
+                const values = data.map(item => parseFloat(item.value)).reverse();
+                
+                // Format times for display
+                const timeLabels = timestamps.map(time => time.toLocaleTimeString());
+                
+                // Update the chart
+                tempChart.data.labels = timeLabels;
+                tempChart.data.datasets[0].data = values;
+                tempChart.update();
+            } catch (error) {
+                console.error('Error updating temperature chart:', error);
+            }
         }
         
         // Update acceleration charts
         function updateAccelerationCharts(xData, yData, zData) {
-            if (xData.length === 0 || yData.length === 0 || zData.length === 0) return;
+            if (!xData || !yData || !zData || xData.length === 0 || yData.length === 0 || zData.length === 0) return;
             
-            // Use X-axis timestamps for labels (reverse to get chronological order)
-            const timestamps = xData.map(item => new Date(item.created_at)).reverse();
-            
-            // Format times for display
-            const timeLabels = timestamps.map(time => time.toLocaleTimeString());
-            
-            // Get values (convert to m/s² by multiplying by gravity constant)
-            const xValues = xData.map(item => parseFloat(item.value) * 9.80665).reverse();
-            const yValues = yData.map(item => parseFloat(item.value) * 9.80665).reverse();
-            const zValues = zData.map(item => parseFloat(item.value) * 9.80665).reverse();
-            
-            // Update the chart
-            accelChart.data.labels = timeLabels;
-            accelChart.data.datasets[0].data = xValues;
-            accelChart.data.datasets[1].data = yValues;
-            accelChart.data.datasets[2].data = zValues;
-            accelChart.update();
+            try {
+                // Use X-axis timestamps for labels (reverse to get chronological order)
+                const timestamps = xData.map(item => new Date(item.created_at)).reverse();
+                
+                // Format times for display
+                const timeLabels = timestamps.map(time => time.toLocaleTimeString());
+                
+                // Get values (convert to m/s² by multiplying by gravity constant)
+                const xValues = xData.map(item => parseFloat(item.value) * 9.80665).reverse();
+                const yValues = yData.map(item => parseFloat(item.value) * 9.80665).reverse();
+                const zValues = zData.map(item => parseFloat(item.value) * 9.80665).reverse();
+                
+                // Update the chart
+                accelChart.data.labels = timeLabels;
+                accelChart.data.datasets[0].data = xValues;
+                accelChart.data.datasets[1].data = yValues;
+                accelChart.data.datasets[2].data = zValues;
+                accelChart.update();
+            } catch (error) {
+                console.error('Error updating acceleration chart:', error);
+            }
         }
         
         // Update status display
@@ -474,6 +584,20 @@
             const statusElement = document.getElementById('status');
             statusElement.textContent = message;
             statusElement.className = 'status ' + statusClass;
+            
+            // Add click handler to show error details if there's an error
+            if (statusClass === 'disconnected' && lastErrorMessage) {
+                if (!statusElement.onclick) {
+                    statusElement.style.cursor = 'pointer';
+                    statusElement.onclick = function() {
+                        const errorDetails = document.getElementById('error-details');
+                        errorDetails.style.display = errorDetails.style.display === 'none' ? 'block' : 'none';
+                    };
+                }
+            } else {
+                statusElement.onclick = null;
+                statusElement.style.cursor = 'default';
+            }
         }
         
         // Initialize the page
@@ -497,6 +621,11 @@
             }
             if (savedGroup) {
                 document.getElementById('aio-group').value = savedGroup;
+            }
+            
+            // Auto-connect if we have credentials
+            if (savedUsername && savedKey && savedGroup) {
+                setTimeout(connectToAdafruitIO, 1000); // Small delay to ensure page is loaded
             }
         });
     </script>
