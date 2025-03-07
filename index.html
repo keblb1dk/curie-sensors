@@ -118,6 +118,59 @@
             border-radius: 5px;
             display: none;
         }
+        /* Custom toggle switch for the dashboard view */
+        .toggle-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .toggle-label {
+            margin: 0 10px;
+            color: #2c3e50;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        #embedded-view, #chart-view {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -127,49 +180,72 @@
             <div class="subtitle">Real-time sensor monitoring from anywhere</div>
         </div>
         
-        <div class="cards">
-            <div class="card">
-                <div class="card-title">Temperature</div>
-                <div id="temp-c" class="card-value">--</div>
-                <div class="card-unit">°C</div>
-            </div>
-            <div class="card">
-                <div class="card-title">Temperature</div>
-                <div id="temp-f" class="card-value">--</div>
-                <div class="card-unit">°F</div>
-            </div>
-            <div class="card">
-                <div class="card-title">X-Acceleration</div>
-                <div id="accel-x" class="card-value">--</div>
-                <div class="card-unit">m/s²</div>
-            </div>
-            <div class="card">
-                <div class="card-title">Y-Acceleration</div>
-                <div id="accel-y" class="card-value">--</div>
-                <div class="card-unit">m/s²</div>
-            </div>
-            <div class="card">
-                <div class="card-title">Z-Acceleration</div>
-                <div id="accel-z" class="card-value">--</div>
-                <div class="card-unit">m/s²</div>
-            </div>
+        <div class="toggle-container">
+            <span class="toggle-label">Embedded View</span>
+            <label class="switch">
+                <input type="checkbox" id="view-toggle">
+                <span class="slider"></span>
+            </label>
+            <span class="toggle-label">Chart View</span>
         </div>
         
-        <div class="chart-container">
-            <div class="chart-title">Temperature History</div>
-            <canvas id="temperatureChart"></canvas>
+        <!-- Chart View -->
+        <div id="chart-view">
+            <div class="cards">
+                <div class="card">
+                    <div class="card-title">Temperature</div>
+                    <div id="temp-c" class="card-value">--</div>
+                    <div class="card-unit">°C</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Temperature</div>
+                    <div id="temp-f" class="card-value">--</div>
+                    <div class="card-unit">°F</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">X-Acceleration</div>
+                    <div id="accel-x" class="card-value">--</div>
+                    <div class="card-unit">m/s²</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Y-Acceleration</div>
+                    <div id="accel-y" class="card-value">--</div>
+                    <div class="card-unit">m/s²</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Z-Acceleration</div>
+                    <div id="accel-z" class="card-value">--</div>
+                    <div class="card-unit">m/s²</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Temperature History</div>
+                <canvas id="temperatureChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Acceleration History</div>
+                <canvas id="accelerationChart"></canvas>
+            </div>
+            
+            <div id="status" class="status loading">
+                Loading data...
+            </div>
+            
+            <div id="error-log"></div>
         </div>
         
-        <div class="chart-container">
-            <div class="chart-title">Acceleration History</div>
-            <canvas id="accelerationChart"></canvas>
+        <!-- Embedded View -->
+        <div id="embedded-view">
+            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.temperature-f/embed"></iframe>
+            
+            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-x/embed"></iframe>
+            
+            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-y/embed"></iframe>
+            
+            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-z/embed"></iframe>
         </div>
-        
-        <div id="status" class="status loading">
-            Connecting to Adafruit IO...
-        </div>
-        
-        <div id="error-log"></div>
         
         <div class="footer">
             <p>Data refreshes automatically. Last updated: <span id="last-update">never</span></p>
@@ -181,6 +257,7 @@
         const USERNAME = 'keblb1dk';
         const GROUP_NAME = 'curie-sensors';
         const UPDATE_INTERVAL = 3000; // 3 seconds
+        const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
         
         // Global variables
         let tempChart, accelChart;
@@ -257,85 +334,92 @@
             });
         }
         
-        // Fetch data from Adafruit IO using JSONP
-        function fetchFeedData(feedKey, callback) {
-            const script = document.createElement('script');
-            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-            
-            // Create global callback function
-            window[callbackName] = function(data) {
-                callback(data);
-                delete window[callbackName];
-                document.body.removeChild(script);
-            };
-            
-            // Build URL with callback parameter
-            const url = `https://io.adafruit.com/api/v2/${USERNAME}/feeds/${GROUP_NAME}.${feedKey}/data?limit=20&callback=${callbackName}`;
-            
-            // Create script tag with jsonp URL
-            script.src = url;
-            document.body.appendChild(script);
-            
-            // Set timeout to remove script if no response
-            setTimeout(function() {
-                if (window[callbackName]) {
-                    delete window[callbackName];
-                    document.body.removeChild(script);
-                    logError(`Timeout fetching data for ${feedKey}`);
-                }
-            }, 5000);
+        // Fetch data from Adafruit IO using CORS proxy
+        function fetchFeedData(feedKey) {
+            return new Promise((resolve, reject) => {
+                const url = `https://io.adafruit.com/api/v2/${USERNAME}/feeds/${GROUP_NAME}.${feedKey}/data?limit=20`;
+                
+                // First try direct access
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        resolve(data);
+                    })
+                    .catch(error => {
+                        // If direct access fails, try CORS proxy
+                        console.log('Direct access failed, trying CORS proxy...');
+                        const proxyUrl = CORS_PROXY + url;
+                        
+                        fetch(proxyUrl)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error(`HTTP error with proxy! status: ${response.status}`);
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                resolve(data);
+                            })
+                            .catch(proxyError => {
+                                reject(proxyError);
+                            });
+                    });
+            });
         }
         
         // Fetch all feeds
         function fetchAllData() {
-            try {
-                // Temperature C
-                fetchFeedData('temperature-c', function(data) {
-                    if (data && data.length > 0) {
-                        document.getElementById('temp-c').textContent = parseFloat(data[0].value).toFixed(2);
-                    }
-                });
+            Promise.all([
+                fetchFeedData('temperature-c'),
+                fetchFeedData('temperature-f'),
+                fetchFeedData('acceleration-x'),
+                fetchFeedData('acceleration-y'),
+                fetchFeedData('acceleration-z')
+            ])
+            .then(([tempCData, tempFData, accelXData, accelYData, accelZData]) => {
+                // Update current values
+                if (tempCData && tempCData.length > 0) {
+                    document.getElementById('temp-c').textContent = parseFloat(tempCData[0].value).toFixed(2);
+                }
                 
-                // Temperature F
-                fetchFeedData('temperature-f', function(data) {
-                    if (data && data.length > 0) {
-                        document.getElementById('temp-f').textContent = parseFloat(data[0].value).toFixed(2);
-                        updateTemperatureChart(data);
-                    }
-                });
+                if (tempFData && tempFData.length > 0) {
+                    document.getElementById('temp-f').textContent = parseFloat(tempFData[0].value).toFixed(2);
+                    updateTemperatureChart(tempFData);
+                }
                 
-                // Acceleration X
-                fetchFeedData('acceleration-x', function(data) {
-                    if (data && data.length > 0) {
-                        document.getElementById('accel-x').textContent = (parseFloat(data[0].value) * 9.80665).toFixed(4);
-                        updateAccelXChart(data);
-                    }
-                });
+                if (accelXData && accelXData.length > 0) {
+                    document.getElementById('accel-x').textContent = (parseFloat(accelXData[0].value) * 9.80665).toFixed(4);
+                }
                 
-                // Acceleration Y
-                fetchFeedData('acceleration-y', function(data) {
-                    if (data && data.length > 0) {
-                        document.getElementById('accel-y').textContent = (parseFloat(data[0].value) * 9.80665).toFixed(4);
-                        updateAccelYChart(data);
-                    }
-                });
+                if (accelYData && accelYData.length > 0) {
+                    document.getElementById('accel-y').textContent = (parseFloat(accelYData[0].value) * 9.80665).toFixed(4);
+                }
                 
-                // Acceleration Z
-                fetchFeedData('acceleration-z', function(data) {
-                    if (data && data.length > 0) {
-                        document.getElementById('accel-z').textContent = (parseFloat(data[0].value) * 9.80665).toFixed(4);
-                        updateAccelZChart(data);
-                    }
-                });
+                if (accelZData && accelZData.length > 0) {
+                    document.getElementById('accel-z').textContent = (parseFloat(accelZData[0].value) * 9.80665).toFixed(4);
+                }
+                
+                // Update acceleration chart if we have all data
+                if (accelXData && accelYData && accelZData && 
+                    accelXData.length > 0 && accelYData.length > 0 && accelZData.length > 0) {
+                    updateAccelerationChart(accelXData, accelYData, accelZData);
+                }
                 
                 // Update status and timestamp
                 const now = new Date();
                 document.getElementById('last-update').textContent = now.toLocaleTimeString();
                 lastUpdateTime = now;
                 updateStatus('Connected to Adafruit IO', 'connected');
-            } catch (error) {
+            })
+            .catch(error => {
                 logError(`Error fetching data: ${error.message}`);
-            }
+                updateStatus('Error connecting to Adafruit IO', 'disconnected');
+            });
         }
         
         // Update temperature chart
@@ -359,87 +443,28 @@
             }
         }
         
-        // Store collected acceleration data
-        let accelXData = [];
-        let accelYData = [];
-        let accelZData = [];
-        let accelTimestamps = [];
-        
-        // Update X acceleration values
-        function updateAccelXChart(data) {
-            if (!data || data.length === 0) return;
-            
+        // Update acceleration chart
+        function updateAccelerationChart(xData, yData, zData) {
             try {
-                // Extract timestamps and values (reverse to get chronological order)
-                const timestamps = data.map(item => new Date(item.created_at)).reverse();
-                const values = data.map(item => parseFloat(item.value) * 9.80665).reverse(); // Convert to m/s²
+                // Use X-axis timestamps for labels
+                const timestamps = xData.map(item => new Date(item.created_at)).reverse();
                 
-                // Store data for complete chart update
-                accelXData = values;
-                accelTimestamps = timestamps;
-                
-                // Try to update the complete acceleration chart
-                updateAccelerationChart();
-            } catch (error) {
-                logError(`Error updating accel X chart: ${error.message}`);
-            }
-        }
-        
-        // Update Y acceleration values
-        function updateAccelYChart(data) {
-            if (!data || data.length === 0) return;
-            
-            try {
-                // Extract values (reverse to get chronological order)
-                const values = data.map(item => parseFloat(item.value) * 9.80665).reverse(); // Convert to m/s²
-                
-                // Store data for complete chart update
-                accelYData = values;
-                
-                // Try to update the complete acceleration chart
-                updateAccelerationChart();
-            } catch (error) {
-                logError(`Error updating accel Y chart: ${error.message}`);
-            }
-        }
-        
-        // Update Z acceleration values
-        function updateAccelZChart(data) {
-            if (!data || data.length === 0) return;
-            
-            try {
-                // Extract values (reverse to get chronological order)
-                const values = data.map(item => parseFloat(item.value) * 9.80665).reverse(); // Convert to m/s²
-                
-                // Store data for complete chart update
-                accelZData = values;
-                
-                // Try to update the complete acceleration chart
-                updateAccelerationChart();
-            } catch (error) {
-                logError(`Error updating accel Z chart: ${error.message}`);
-            }
-        }
-        
-        // Update the complete acceleration chart
-        function updateAccelerationChart() {
-            // Only update if we have data for all axes and timestamps
-            if (accelXData.length === 0 || accelYData.length === 0 || accelZData.length === 0 || accelTimestamps.length === 0) {
-                return;
-            }
-            
-            try {
                 // Format times for display
-                const timeLabels = accelTimestamps.map(time => time.toLocaleTimeString());
+                const timeLabels = timestamps.map(time => time.toLocaleTimeString());
                 
-                // Make sure all arrays have the same length
-                const minLength = Math.min(accelXData.length, accelYData.length, accelZData.length, timeLabels.length);
+                // Get values and convert to m/s²
+                const xValues = xData.map(item => parseFloat(item.value) * 9.80665).reverse();
+                const yValues = yData.map(item => parseFloat(item.value) * 9.80665).reverse();
+                const zValues = zData.map(item => parseFloat(item.value) * 9.80665).reverse();
                 
-                // Update the chart
+                // Get the minimum length to avoid mismatched arrays
+                const minLength = Math.min(timeLabels.length, xValues.length, yValues.length, zValues.length);
+                
+                // Update the chart with trimmed arrays
                 accelChart.data.labels = timeLabels.slice(0, minLength);
-                accelChart.data.datasets[0].data = accelXData.slice(0, minLength);
-                accelChart.data.datasets[1].data = accelYData.slice(0, minLength);
-                accelChart.data.datasets[2].data = accelZData.slice(0, minLength);
+                accelChart.data.datasets[0].data = xValues.slice(0, minLength);
+                accelChart.data.datasets[1].data = yValues.slice(0, minLength);
+                accelChart.data.datasets[2].data = zValues.slice(0, minLength);
                 accelChart.update();
             } catch (error) {
                 logError(`Error updating acceleration chart: ${error.message}`);
@@ -461,12 +486,26 @@
             errorLog.innerHTML += `<p>${message}</p>`;
         }
         
+        // Toggle between views
+        function toggleView() {
+            const isChartView = document.getElementById('view-toggle').checked;
+            document.getElementById('chart-view').style.display = isChartView ? 'block' : 'none';
+            document.getElementById('embedded-view').style.display = isChartView ? 'none' : 'block';
+        }
+        
         // Initialize the page
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize charts
             initCharts();
             
-            // Initial data fetch
+            // Set up view toggle
+            document.getElementById('view-toggle').addEventListener('change', toggleView);
+            
+            // Show embedded view by default
+            document.getElementById('view-toggle').checked = false;
+            toggleView();
+            
+            // Initial data fetch for chart view
             fetchAllData();
             
             // Set up interval for regular updates
