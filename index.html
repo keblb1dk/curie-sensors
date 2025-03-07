@@ -168,7 +168,7 @@
         input:checked + .slider:before {
             transform: translateX(26px);
         }
-        #embedded-view, #chart-view {
+        #chart-view {
             display: none;
         }
     </style>
@@ -180,14 +180,7 @@
             <div class="subtitle">Real-time sensor monitoring from anywhere</div>
         </div>
         
-        <div class="toggle-container">
-            <span class="toggle-label">Embedded View</span>
-            <label class="switch">
-                <input type="checkbox" id="view-toggle">
-                <span class="slider"></span>
-            </label>
-            <span class="toggle-label">Chart View</span>
-        </div>
+
         
         <!-- Chart View -->
         <div id="chart-view">
@@ -234,17 +227,6 @@
             </div>
             
             <div id="error-log"></div>
-        </div>
-        
-        <!-- Embedded View -->
-        <div id="embedded-view">
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.temperature-f/embed"></iframe>
-            
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-x/embed"></iframe>
-            
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-y/embed"></iframe>
-            
-            <iframe width="100%" height="400" style="border: 1px solid #cccccc; margin-bottom: 20px;" src="https://io.adafruit.com/keblb1dk/feeds/curie-sensors.acceleration-z/embed"></iframe>
         </div>
         
         <div class="footer">
