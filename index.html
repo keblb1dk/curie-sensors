@@ -158,11 +158,15 @@
             <h2>Adafruit IO Settings</h2>
             <div class="form-group">
                 <label for="aio-username">Username</label>
-                <input type="text" id="aio-username" placeholder="Enter your Adafruit IO username">
+                <input type="text" id="aio-username" value="keblb1dk" placeholder="Enter your Adafruit IO username">
             </div>
             <div class="form-group">
                 <label for="aio-key">API Key</label>
                 <input type="password" id="aio-key" placeholder="Enter your Adafruit IO key">
+            </div>
+            <div class="form-group">
+                <label for="aio-group">Group Name</label>
+                <input type="text" id="aio-group" value="curie-sensors" placeholder="Enter the group name">
             </div>
             <button id="connect-button">Connect</button>
         </div>
@@ -218,6 +222,7 @@
         // Global variables
         let username = '';
         let apiKey = '';
+        let groupName = '';
         let tempChart, accelChart;
         let lastUpdateTime = 0;
         let updateInterval;
@@ -296,9 +301,10 @@
         function connectToAdafruitIO() {
             username = document.getElementById('aio-username').value.trim();
             apiKey = document.getElementById('aio-key').value.trim();
+            groupName = document.getElementById('aio-group').value.trim();
             
-            if (!username || !apiKey) {
-                updateStatus('Please enter both username and API key', 'disconnected');
+            if (!username || !apiKey || !groupName) {
+                updateStatus('Please enter username, API key, and group name', 'disconnected');
                 return;
             }
             
@@ -307,11 +313,12 @@
             // Store credentials in localStorage (for convenience)
             localStorage.setItem('aio-username', username);
             localStorage.setItem('aio-key', apiKey);
+            localStorage.setItem('aio-group', groupName);
             
             // Fetch initial data to verify connection
-            fetchFeedData('temperature-f')
+            fetchGroupData()
                 .then(data => {
-                    if (data.length > 0) {
+                    if (data) {
                         updateStatus('Connected to Adafruit IO', 'connected');
                         startDataUpdates();
                     } else {
@@ -320,8 +327,26 @@
                 })
                 .catch(error => {
                     console.error('Connection error:', error);
-                    updateStatus('Failed to connect to Adafruit IO', 'disconnected');
+                    updateStatus('Failed to connect to Adafruit IO: ' + error.message, 'disconnected');
                 });
+        }
+        
+        // Fetch group data to verify connection
+        function fetchGroupData() {
+            const url = `https://io.adafruit.com/api/v2/${username}/groups/${groupName}`;
+            
+            return fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-AIO-Key': apiKey
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            });
         }
         
         // Start regular data updates
@@ -385,9 +410,10 @@
             });
         }
         
-        // Fetch data for a specific feed
+        // Fetch data for a specific feed within the group
         function fetchFeedData(feedName) {
-            const url = `https://io.adafruit.com/api/v2/${username}/feeds/${feedName}/data?limit=20`;
+            const feedKey = `${groupName}.${feedName}`;
+            const url = `https://io.adafruit.com/api/v2/${username}/feeds/${feedKey}/data?limit=20`;
             
             return fetch(url, {
                 method: 'GET',
@@ -409,7 +435,7 @@
             
             // Extract timestamps and values (reverse to get chronological order)
             const timestamps = data.map(item => new Date(item.created_at)).reverse();
-            const values = data.map(item => item.value).reverse();
+            const values = data.map(item => parseFloat(item.value)).reverse();
             
             // Format times for display
             const timeLabels = timestamps.map(time => time.toLocaleTimeString());
@@ -431,9 +457,9 @@
             const timeLabels = timestamps.map(time => time.toLocaleTimeString());
             
             // Get values (convert to m/s² by multiplying by gravity constant)
-            const xValues = xData.map(item => item.value * 9.80665).reverse();
-            const yValues = yData.map(item => item.value * 9.80665).reverse();
-            const zValues = zData.map(item => item.value * 9.80665).reverse();
+            const xValues = xData.map(item => parseFloat(item.value) * 9.80665).reverse();
+            const yValues = yData.map(item => parseFloat(item.value) * 9.80665).reverse();
+            const zValues = zData.map(item => parseFloat(item.value) * 9.80665).reverse();
             
             // Update the chart
             accelChart.data.labels = timeLabels;
@@ -461,10 +487,16 @@
             // Check for saved credentials
             const savedUsername = localStorage.getItem('aio-username');
             const savedKey = localStorage.getItem('aio-key');
+            const savedGroup = localStorage.getItem('aio-group');
             
-            if (savedUsername && savedKey) {
+            if (savedUsername) {
                 document.getElementById('aio-username').value = savedUsername;
+            }
+            if (savedKey) {
                 document.getElementById('aio-key').value = savedKey;
+            }
+            if (savedGroup) {
+                document.getElementById('aio-group').value = savedGroup;
             }
         });
     </script>
